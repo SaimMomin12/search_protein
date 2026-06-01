@@ -15,6 +15,7 @@ A fast protein sequence search tool using embedding-based similarity search with
 - Python 3.7+
 - PyTorch (with CUDA support for GPU acceleration)
 - FAISS
+- usearch (the vector database), not the DNA/RNA search/clustering tool)
 - MMseqs2
 - Transformers
 - NumPy
@@ -28,7 +29,7 @@ Create a conda environment with all dependencies:
 # Create and activate environment
 conda create -n search_fasta create  -c pytorch -c nvidia -c conda-forge -c bioconda   python=3.10 mmseqs2 "pytorch>=2.5" pytorch-cuda=12.1   "faiss-cpu>=1.8" numpy scikit-learn transformers einops
 conda activate search_fasta
-
+pip install usearch
 ```
 
 Then download the repo
@@ -36,7 +37,11 @@ Then download the repo
 # Clone the repository
 git clone https://github.com/RolandFaure/search_protein.git
 ```
-
+And compile the C++ scripts
+```bash
+cd search_protein
+make
+```
 
 ## Quick Start
 
@@ -73,9 +78,11 @@ Search your pre-built FAISS database with the embedded queries:
 ```bash
 python search_database.py \
     --database /path/to/database \
+    --db-type usearch \
     --output results_folder \
     --query_sequences queries.fasta \
-    -t 8
+    -t 8 \ #number of threads
+    -m 100 #available RAM (G)
 ```
 
 **Parameters:**
@@ -88,8 +95,9 @@ python search_database.py \
 **Output files:**
 ```
 results_folder/
-├── matches.fasta          # Main output: matched proteins
-├── matches.mmseqs2        # MMseqs2 alignment results
+├── diversified_hits.tsv   # Set of proteins related to you queries according to the gLM2 protein language model
+├── matches.fasta          # Set of proteins aligning on your queries according to mmseqs2
+├── matches.mmseqs2        # Detail of the mmseqs2 alignments
 └── intermediate_files/
     ├── query_embeddings.npy
     ├── query_embeddings.names.txt
@@ -102,8 +110,17 @@ results_folder/
 
 ## Main Output Files
 
+- **`diversified_hits.tsv`**: TSV files containing Logan proteins which gLM2 embeddings have a cosine distance of less 0.2 to the embeddings fo the query.
+```
+#query_name     result_name     result_sequences        cosine_distance
+alpha      ERR11474596_7103_1      MLDWNTSSDIFVEKLLQRNYKSQSLHSQPRHRPQVDGIPYEFGYKGTIYPMNKSRNCIIILLLIPVLVHSTRNAAYFESLEMKIVEQVKLNRAQGKWQLVRELLGLKGTFLKPRWQHFAKTVSSRDFFGNWLPLMLEIERYLYSKKMYPDSYLSWDDHSSYRVRKKVYRRGYDDKGSRRPEHKWFPENAFSRELLDEVPVKRAVYKPFELYHGYSEKRRRRSSLSSLLDL* 0.015888094902038574
+```
 - **`matches.fasta`**: FASTA file containing all matched protein sequences
 - **`matches.mmseqs2`**: MMseqs2 alignment results of matched protein versus queries
+```
+#target  query  identity        alignment_length        nb_mismatches   nb_gap_openings target_start     target_end       query_start    query_end      evalue  bitscore
+SRR21885923_17279_1#87#695#-1   alpha   0.924   202     15      0       1       202     1       202     4.604E-129      393
+```
 
 ## Complete Example
 
@@ -120,7 +137,8 @@ python search_database.py \
     --database /data/protein_database \
     --output search_results \
     --query_sequences my_proteins.fasta \
-    -t 16
+    --db-type usearch \
+    -t 16 -m 100
 
 # 3. View results
 less search_results/matches.mmseqs2
@@ -135,15 +153,14 @@ key performance points to understand.
 On my system, the performance went from 9000 CPU.s for one query and 12000 CPU.s for 2000 queries.
 
 2. **Parallel Search**: Use multiple processes for faster database search. 
-   The program is theoretically trivially parallel, but in my tests is actually limited by RAM bandwidth and hence
-   the speedup is sub-linear in the number of processes.
-   */!\ RAM consumption of ~25GB / process*
+   The program is theoretically trivially parallel, but is actually limited by RAM bandwidth and hence
+   the speedup is sub-linear in the number of processes. It will automatically reduce the number of threads based on the available RAM.
    ```bash
    python search_database.py --database db --output results --query_sequences queries.fasta -t 10
    ```
 
 3. **GPU Acceleration**: Use GPU for embedding 
-    At embedding time, using GPU takes ~1s / query versus 120s / query on CPU.
+    At embedding time, using GPU takes ~0.1s / query versus 20s / query on CPU.
     Keep in mind that embedding time is not significant for few queries.
    ```bash
    python embed_query.py --query_sequences queries.fasta --output results -F
@@ -155,7 +172,7 @@ On my system, the performance went from 9000 CPU.s for one query and 12000 CPU.s
 
 ### Out of memory
 
-If you encounter out of memory errors during search, reduce the number of threads with `-t` (each process requires ~25GB of RAM)
+If you encounter out of memory errors during search, reduce the number of threads with `-t` (each process requires ~3GB of RAM)
 
 ### Problem loading the model
 The script connects to the internet to load the gLM2 model the first time it runs. Make sure you have an internet connection.
