@@ -247,9 +247,6 @@ def _read_embedding_batch(args):
     return result_list
 
 
-# PCA support removed: full-embedding re-scoring is no longer performed
-
-
 def _read_fasta_batch(args):
     """Helper function for parallel FASTA reading. Must be at module level for ThreadPoolExecutor."""
     original_fasta, match_indices_batch, index_positions = args
@@ -815,7 +812,7 @@ if __name__ == "__main__":
     
     print(f"Configuration: index_threads={args.index_threads}, align_threads={args.align_threads}")
     
-    cutoff = 0.2 #cosine distance cutoff
+    cutoff = 0.25 #cosine distance cutoff
     subdatabase_size = 100_000
     group_distance = 0 #when using 0.1, the papilloma query hit 10B proteins, which is too much
     path_to_centroid_to_prots = os.path.join(os.path.dirname(__file__), "centroid_to_prots")
