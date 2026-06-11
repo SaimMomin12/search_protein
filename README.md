@@ -1,10 +1,6 @@
 # search_protein
 
-A fast protein sequence search tool using embedding-based similarity search with FAISS.
-
-## Overview
-
-`search_fasta` provides a two-step python script to search throught the protein database.
+A fast protein sequence search tool using embedding-based similarity search.
 
 ## Installation
 
