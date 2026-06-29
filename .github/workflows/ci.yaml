@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  smoke_test:
+  Smoke test for search_fasta:
     runs-on: ubuntu-latest
 
     steps:
